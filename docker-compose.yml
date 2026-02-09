@@ -6,91 +6,94 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
-      - WEBUI_PORT=5080
+      - WEBUI_PORT=8080
     volumes:
-      - ./qbittorrent/config:/config
-      - /home/oscar:/downloads
+      - ./config/qbittorrent:/config
+      - ./data/torrents:/data/torrents
     ports:
-      - "5080:5080"
+      - "8080:8080"
       - "6881:6881"
       - "6881:6881/udp"
     restart: unless-stopped
     networks:
-      - mynetwork
+      - media-network
 
-radarr:
-  image: lscr.io/linuxserver/radarr:latest
-  container_name: radarr
-  environment:
-    - PUID=1000
-    - PGID=1000
-    - TZ=Europe/Madrid
-  volumes:
-    - ./radarr/config:/config
-    - ./radarr/movies:/movies
-    - ./radarr/downloads:/downloads
-  ports:
-    - "7878:7878"
-  restart: unless-stopped
-  networks:
-    my-network:
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/radarr:/config
+      - ./data:/data
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+    networks:
+      - media-network
 
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/sonarr:/config
+      - ./data:/data
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+    networks:
+      - media-network
 
-sonar:
-  image: lscr.io/linuxserver/sonarr:latest
-  container_name: sonarr
-  environment:
-    - PUID=1000
-    - PGID=1000
-    - TZ=Europe/Madrid
-  volumes:
-    - ./sonarr/config:/config
-    - ./sonarr/tv:/tv
-    - ./sonarr/downloads:/downloads
-  ports:
-    - "8989:8989"
-  restart: unless-stopped
-  networks:
-    my-network:
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/prowlarr:/config
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+    networks:
+      - media-network
 
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config/jellyfin:/config
+      - ./cache/jellyfin:/cache
+      - ./data/media:/media
+    ports:
+      - "8096:8096"
+    restart: unless-stopped
+    networks:
+      - media-network
 
-prowlarr:
-  image: lscr.io/linuxserver/prowlarr:latest
-  container_name: prowlarr
-  environment:
-    - PUID=1000
-    - PGID=1000
-    - TZ=Europe/Madrid
-  volumes:
-    - ./prowlarr/config:/config
-  ports:
-    - "9696:9696"
-  restart: unless-stopped
-  networks:
-    my-network:
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/jellyseerr:/app/config
+    ports:
+      - "5055:5055"
+    restart: unless-stopped
+    networks:
+      - media-network
 
-
-jellfin:
-  image: jellyfin/jellyfin:latest
-  container_name: jellyfin
-  volumes:
-    - ./jellyfin/config:/config
-    - ./jellyfin/cache:/cache
-    - ./jellyfin/media:/media
-  ports:
-    - "8096:8096"
-  restart: unless-stopped
-
-jellyseerr:
-  image: fallenbagel/jellyseerr:latest
-  container_name: jellyseerr
-  environment:
-    - TZ=Europe/Madrid
-  volumes:
-    - ./jellyseerr/config:/app/config
-  ports:
-    - "5055:5055"
-  restart: unless-stopped
-  networks:
-    my-network:
-      external: false
+networks:
+  media-network:
+    driver: bridge
