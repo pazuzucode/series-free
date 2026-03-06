@@ -2,98 +2,136 @@ services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
+    hostname: qbittorrent
+    restart: unless-stopped
+    environment:
+      - WEBUI_PORT=8011
+      - TORRENTING_PORT=6881
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ${ARRPATH}qbittorrent/config:/config
+      - ${ARRPATH}downloads:/downloads
+      - ./config/qbittorrent/custom-cont-init.d:/custom-cont-init.d
+    ports:
+      - "8011:8011"
+      - "6881:6881"
+      - "6881:6881/udp"
+    networks:
+      - media-network
+    depends_on:
+      - prowlarr
+
+  # Indexadores
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    hostname: prowlarr
+    restart: unless-stopped
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
-      - WEBUI_PORT=8080
+      - DNS=8.8.8.8
     volumes:
-      - ./config/qbittorrent:/config
-      - ./data/torrents:/data/torrents
+      - ${ARRPATH}prowlarr/config:/config
+      - ${ARRPATH}prowlarr/backup:/data/backup
+      - ${ARRPATH}downloads:/downloads
+      - ./config/prowlarr/custom-cont-init.d:/custom-cont-init.d
     ports:
-      - "8080:8080"
-      - "6881:6881"
-      - "6881:6881/udp"
-    restart: unless-stopped
+      - "9696:9696"
     networks:
       - media-network
+
+  # Gestión de Medios (Películas y Series)
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    hostname: sonarr
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - DNS=8.8.8.8
+    volumes:
+      - ${ARRPATH}sonarr/config:/config
+      - ${ARRPATH}sonarr/backup:/data/backup
+      - ${ARRPATH}sonarr/tvshows:/data/tvshows
+      - ${ARRPATH}downloads:/downloads
+    ports:
+      - "8989:8989"
+    networks:
+      - media-network
+    depends_on:
+      - qbittorrent
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
+    hostname: radarr
+    restart: unless-stopped
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
     volumes:
-      - ./config/radarr:/config
-      - ./data:/data
+      - ${ARRPATH}radarr/config:/config
+      - ${ARRPATH}radarr/backup:/data/backup
+      - ${ARRPATH}radarr/movies:/data/movies
+      - ${ARRPATH}downloads:/downloads
+      - ./config/radarr/custom-cont-init.d:/custom-cont-init.d
     ports:
       - "7878:7878"
-    restart: unless-stopped
     networks:
       - media-network
+    depends_on:
+      - qbittorrent
 
-  sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
-    container_name: sonarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Madrid
-    volumes:
-      - ./config/sonarr:/config
-      - ./data:/data
-    ports:
-      - "8989:8989"
-    restart: unless-stopped
-    networks:
-      - media-network
-
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    container_name: prowlarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Madrid
-    volumes:
-      - ./config/prowlarr:/config
-    ports:
-      - "9696:9696"
-    restart: unless-stopped
-    networks:
-      - media-network
-
+  # Servidores de Streaming Multimedia
   jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
-    environment:
-      - PUID=1000
-      - PGID=1000
-    volumes:
-      - ./config/jellyfin:/config
-      - ./cache/jellyfin:/cache
-      - ./data/media:/media
-    ports:
-      - "8096:8096"
+    hostname: jellyfin
     restart: unless-stopped
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://localhost:8096
+    volumes:
+      - ${ARRPATH}jellyfin/config:/config
+      - ${ARRPATH}radarr/movies:/data/movies
+      - ${ARRPATH}sonarr/tvshows:/data/tvshows
+      - ${ARRPATH}jellyfin/cache:/cache
+    ports:
+      - "8096:8096/tcp"
+      - "7359:7359/udp"
+      - "1900:1900/udp"
     networks:
       - media-network
 
+  # Gestión de Solicitudes
   jellyseerr:
     image: fallenbagel/jellyseerr:latest
     container_name: jellyseerr
+    hostname: jellyseerr
+    restart: unless-stopped
     environment:
-      - TZ=Europe/Madrid
+      - LOG_LEVEL=debug
     volumes:
-      - ./config/jellyseerr:/app/config
+      - ${ARRPATH}jellyseerr/config:/app/config
     ports:
       - "5055:5055"
-    restart: unless-stopped
     networks:
       - media-network
+    depends_on:
+      - radarr
+      - sonarr
+      - jellyfin
 
+# Redes Docker personalizadas para aislar los servicios
 networks:
   media-network:
     driver: bridge
+
+  # Fix de DNS para Prowlarr
+  # (se aplica automáticamente si se reinicia)
